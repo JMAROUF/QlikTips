@@ -1,0 +1,53 @@
+/************  DECLARATION DES VARIABLES *****************/
+Let vConnexion='SmartData_Invest';
+Let vServerName=  ComputerName()	;
+Let vEnvironnement=  IF(Match(ComputerName(),'T3ECB'),'EXPLORATION',IF(Match(ComputerName(),'T3ECC'),'MOA',
+						 IF(Match(ComputerName(),'T3ECE'),'PPD',IF(Match(ComputerName(),'T3ECF'),'PRD','?'))));
+Let vApplicationName= DocumentTitle();
+Let vDebutCharhement=now();
+Let vMetier='SFF';
+Let vFilePath='lib://NAS_DATA/$(Path)/$(vMontorTab).qvd';
+// chemin de sauvegarde
+Let Path='95_ETL_SFF/OUT';
+
+
+/****** CREATION D'UN QVD DE MONITORING DE CHARGEMENT DES TABLES *******/
+LET vMontorTab='Rin_Monitoring';
+Let vAppel=1;
+Sub Monitoring (Table,Debut,Fin)
+  Let vQvdCreateTime=QvdCreateTime('$(vFilePath)') ;
+  IF LEN(vQvdCreateTime)>0 Then 
+    LET vNoofRows= NoOfRows('$(Table)');
+    IF $(vAppel)=1 Then 
+      $(vMontorTab):
+      LOAD * FROM $(vFilePath) (qvd) ;
+    END If
+    Concatenate($(vMontorTab))
+    Load *,Interval(Debut - Fin, 'hh:mm:ss.sss')  AS [datefin - datedebut]    
+    Inline [
+    Metier,QVD,Debut,Fin,NoOfRows,Date_chargement,Connexion,ServerName,Environnement,Application
+    $(vMetier),$(Table),$(Debut),$(Fin),$(vNoofRows),$(vDebutCharhement),$(vConnexion),$(vServerName),$(vEnvironnement),$(vApplicationName)
+    ];
+  ELSE 
+    LET vNoofRows= NoOfRows('$(Table)');
+    $(vMontorTab):
+    Load *,
+    Interval(Debut - Fin, 'hh:mm:ss.sss')  		AS [datefin - datedebut]
+    Inline [
+    Metier,QVD,Debut,Fin,NoOfRows,Date_chargement,Connexion,ServerName,Environnement,Application
+    $(vMetier),$(Table),$(Debut),$(Fin),$(vNoofRows),$(vDebutCharhement),$(vConnexion),$(vServerName),$(vEnvironnement),$(vApplicationName)
+    ];
+  END IF 
+  Let vAppel= $(vAppel)+1;
+End Sub
+
+/****** A DECLARER AVANT CHAQUE TABLE  *******/
+Let vDebut=now();
+
+/****** A DECLARER JUSTE APRES LE CHARGEMENT DE LA TABLE (APRES LE STORE) *******/
+Let vFin=now();
+Call Monitoring ('$(Table)','$(vDebut)','$(vFin)');
+
+/****** A DECLARER A LA FIN DU CHARGEMENT DU SCRIPT (DANS LA DRNIERE SECTION) *******/
+STORE $(vMontorTab) into lib://NAS_DATA/$(Path)/$(vMontorTab).qvd (qvd);
+Drop Table $(vMontorTab);
